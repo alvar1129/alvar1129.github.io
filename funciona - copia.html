@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mostrar cámara en Android</title>
+</head>
+<body>
+    <h1>Ver video desde la cámara del móvil</h1>
+    <video id="videoElement" width="100%" height="auto" autoplay></video>
+
+    <script>
+        async function iniciarCámara() {
+            const videoElement = document.getElementById('videoElement');
+            
+            try {
+                // Accedemos a la cámara del dispositivo móvil
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                
+                // Asignamos el flujo de la cámara al elemento de video
+                videoElement.srcObject = stream;
+            } catch (error) {
+                console.error('Error al acceder a la cámara:', error);
+                alert('No se pudo acceder a la cámara. Asegúrate de haber dado los permisos necesarios.');
+            }
+        }
+
+        // Llamamos a la función para iniciar la cámara
+        iniciarCámara();
+    </script>
+</body>
+</html>
