@@ -11,14 +11,16 @@
     <h1>Detección Facial: Cejas y Boca</h1>
     <div id="output"></div>
 
-    <!-- Video element -->
-    <video id="videoElement" width="480" height="320" autoplay></video>
-    
+    <!-- Elemento de video para mostrar la cámara -->
+    <video id="videoElement" width="640" height="480" autoplay></video>
+
     <script>
+        // Función para calcular la distancia entre dos puntos
         function calcularDistancia(punto1, punto2) {
             return Math.sqrt((punto2.x - punto1.x)**2 + (punto2.y - punto1.y)**2);
         }
 
+        // Función para iniciar la cámara
         async function iniciarVideo() {
             const videoElement = document.getElementById('videoElement');
             try {
@@ -31,6 +33,7 @@
         }
 
         async function run() {
+            // Cargar los modelos de MediaPipe
             const faceMesh = new FaceMesh({
                 locateFile: (file) => {
                     return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
@@ -48,6 +51,7 @@
             let distancias_ojo_ceja_derecha = [];
             const numFramesPromedio = 10;
 
+            // Manejar los resultados de la detección de rostro
             faceMesh.onResults((results) => {
                 if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
                     const faceLandmarks = results.multiFaceLandmarks[0];
@@ -91,4 +95,31 @@
                     const estado_boca = distancia_labios > umbral_apertura ? "Abierta" : "Cerrada";
 
                     outputElement.innerHTML = `
-      
+                        <p>Distancia ceja-ojo izquierdo: ${distancia_ojo_ceja_izquierda.toFixed(2)}</p>
+                        <p>Distancia ceja-ojo derecho: ${distancia_ojo_ceja_derecha.toFixed(2)}</p>
+                        <p>Estado de las cejas: ${estado_cejas}</p>
+                        <p>Estado de la boca: ${estado_boca}</p>
+                    `;
+                } else {
+                    outputElement.innerHTML = `<p>No se detecta ninguna cara</p>`;
+                }
+            });
+
+            const videoElement = document.getElementById('videoElement');
+            videoElement.onloadedmetadata = () => {
+                console.log("Metadatos de video cargados");
+                videoElement.play();
+                setInterval(() => {
+                    faceMesh.send({image: videoElement});
+                }, 100); // 100ms = 0.1 segundo, ajusta según sea necesario
+            };
+        }
+
+        // Iniciar la cámara y los modelos al cargar la página
+        window.onload = () => {
+            iniciarVideo();
+            run();
+        };
+    </script>
+</body>
+</html>
