@@ -3,30 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mostrar cámara en Android</title>
+    <title>Detección Facial: Cejas y Boca</title>
+    <!-- Importar la biblioteca de TensorFlow.js para el aprendizaje profundo -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <!-- Importar la biblioteca de MediaPipe para JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
 </head>
 <body>
-    <h1>Ver video desde la cámara del móvil</h1>
-    <video id="videoElement" width="100%" height="auto" autoplay></video>
+    <h1>Detección Facial: Cejas y Boca</h1>
+    <div id="output"></div>
+
+    <!-- Inicializar la cámara -->
+    <video id="videoElement" width="640" height="480" autoplay></video>
 
     <script>
-        async function iniciarCámara() {
+        // Función para calcular la distancia entre dos puntos
+        function calcularDistancia(punto1, punto2) {
+            return Math.sqrt((punto2.x - punto1.x)**2 + (punto2.y - punto1.y)**2);
+        }
+
+        async function iniciarVideo() {
             const videoElement = document.getElementById('videoElement');
-            
             try {
-                // Accedemos a la cámara del dispositivo móvil
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                
-                // Asignamos el flujo de la cámara al elemento de video
+                const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
                 videoElement.srcObject = stream;
             } catch (error) {
                 console.error('Error al acceder a la cámara:', error);
-                alert('No se pudo acceder a la cámara. Asegúrate de haber dado los permisos necesarios.');
             }
         }
+async function run() {
+    // Cargar los modelos de MediaPipe
+    const faceMesh = new FaceMesh({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+    }});
 
-        // Llamamos a la función para iniciar la cámara
-        iniciarCámara();
-    </script>
+    faceMesh.setOptions({
+        maxNumFaces: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
+
+    const outputElement = document.getElementById('output');
+    let distancias_ojo_ceja_izquierda = [];
+    let distancias_ojo_ceja_derecha = [];
+    const numFramesPromedio = 10;
+
+    faceMesh.onResults((results) => {
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+            const faceLandmarks = results.multiFaceLandmarks[0];
+            const puntos = faceLandmarks;
+
+            const punto_ojo_izquierdo = puntos[33];
+            const punto_ojo_derecho = puntos[263];
+            const punto_ceja_izquierda = puntos[46];
+            const punto_ceja_derecha = puntos[276];
+
+            const distancia_ojo_ceja_izquierda = calcularDistancia(punto_ojo_izquierdo, punto_ceja_izquierda);
+            const distancia_ojo_ceja_derecha = calcularDistancia(punto_ojo_derecho, punto_ceja_derecha);
+
+            distancias_ojo_ceja_izquierda.push(distancia_ojo_ceja_izquierda);
+            distancias_ojo_ceja_derecha.push(distancia_ojo_ceja_derecha);
+
+            if (distancias_ojo_ceja_izquierda.length > numFramesPromedio) {
+                distancias_ojo_ceja_izquierda.shift();
+            }
+            if (distancias_ojo_ceja_derecha.length > numFramesPromedio) {
+                distancias_ojo_ceja_derecha.shift();
+            }
+
+            const sumaDistanciasIzquierda = distancias_ojo_ceja_izquierda.reduce((a, b) => a + b, 0);
+            const sumaDistanciasDerecha = distancias_ojo_ceja_derecha.reduce((a, b) => a + b, 0);
+            const umbral_izquierda = sumaDistanciasIzquierda / distancias_ojo_ceja_izquierda.length;
+            const umbral_derecha = sumaDistanciasDerecha / distancias_ojo_ceja_derecha.length;
+
+            let estado_cejas = "";
+            if (distancia_ojo_ceja_izquierda > umbral_izquierda*1.1 && distancia_ojo_ceja_derecha > umbral_derecha*1.1) {
+                estado_cejas = "Levantadas";
+            } else {
+                estado_cejas = "Bajadas";
+            }
+
+            const punto_superior_labios = puntos[13];
+            const punto_inferior_labios = puntos[14];
+            const distancia_labios = punto_inferior_labios.y - punto_superior_labios.y;
+
+            const umbral_apertura = 0.5 * (distancia_ojo_ceja_izquierda + distancia_ojo_ceja_derecha);
+            const estado_boca = distancia_labios > umbral_apertura ? "Abierta" : "Cerrada";
+
+            outputElement.innerHTML = `
+                <p>Distancia ceja-ojo izquierdo: ${distancia_ojo_ceja_izquierda.toFixed(2)}</p>
+                <p>Distancia ceja-ojo derecho: ${distancia_ojo_ceja_derecha.toFixed(2)}</p>
+                <p>Estado de las cejas: ${estado_cejas}</p>
+                <p>Estado de la boca: ${estado_boca}</p>
+            `;
+        } else {
+            // Si no se detecta ninguna cara, mostrar un mensaje en la salida
+            outputElement.innerHTML = `<p>No se detecta ninguna cara</p>`;
+        }
+    });
+
+    const videoElement = document.getElementById('videoElement');
+    videoElement.onloadedmetadata = () => {
+        videoElement.play();
+        setInterval(() => {
+            faceMesh.send({image: videoElement});
+        }, 100); // 100ms = 0.1 segundo, ajusta según sea necesario
+    };
+}
+
+iniciarVideo();
+run();
+</script>
 </body>
 </html>
